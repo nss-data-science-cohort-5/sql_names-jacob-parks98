@@ -38,10 +38,12 @@ FROM names;
 -- There are 98,400 distinct names in the dataset
 
 --7. Are there more males or more females registered?
-SELECT gender, COUNT(*)
+SELECT gender, SUM(num_registered)
 FROM names
 GROUP BY gender;
--- There are more females registered
+-- There are more males registered
+
+
 
 --8. What are the most popular male and female names overall (i.e., the most total registrations)?
 SELECT name, gender, SUM(num_registered)
@@ -49,6 +51,9 @@ FROM names
 GROUP BY gender, name
 ORDER BY SUM(num_registered) DESC;
 -- James was the most popular male name, Mary was the most popular female name
+
+
+
 
 /* 9. What are the most popular boy and girl names of the first decade of the 2000s
 (2000 - 2009)? */
@@ -59,6 +64,27 @@ GROUP BY name, gender
 ORDER BY SUM(num_registered) DESC;
 /* Jacob (the best name in the dataset) was the most popular boy name from 2000 to 2009
 Emily was the most popular girl name from 2000 to 2009 */
+
+--Bryan
+select distinct name, gender, sum(num_registered) over (partition by name, gender) as total_registrations
+from names
+order by total_registrations desc
+
+--Joshua
+(SELECT gender, name, SUM(num_registered) AS name_total
+FROM names
+WHERE gender = 'F'
+GROUP BY gender, name
+ORDER BY name_total DESC
+LIMIT 1)
+UNION
+(SELECT gender, name, SUM(num_registered) AS name_total
+FROM names
+WHERE gender = 'M'
+GROUP BY gender, name
+ORDER BY name_total DESC
+LIMIT 1)
+
 
 --10. Which year had the most variety in names (i.e. had the most distinct names)?
 SELECT year, COUNT(DISTINCT name)
@@ -104,6 +130,22 @@ SELECT (10773.0/COUNT(DISTINCT name))*100
 FROM names;
 
 --10773 names are unisex, meaning that 10.9% of names are unisex.
+
+--Chris
+SELECT CAST(MIN(unisex_count) AS FLOAT) / CAST(MAX(unisex_count) AS FLOAT) * 100
+FROM
+(SELECT 
+COUNT(*) AS unisex_count
+FROM 
+(SELECT name
+FROM names
+GROUP BY name
+HAVING COUNT(DISTINCT gender) > 1) AS ut
+UNION
+SELECT 
+COUNT(DISTINCT name) AS total_count
+FROM names AS n) AS union_table;
+
 
 --15. How many names have made an appearance in every single year since 1880?
 SELECT COUNT(DISTINCT year)
@@ -165,3 +207,100 @@ WHERE year = 1998
 GROUP BY gender
 ORDER BY SUM(num_registered) DESC;
 --There were more male names from 1998.
+
+-- In what years did the number of male registrations outnumber female registrations
+
+
+-- BONUS
+--1. Find the longest name contained in this dataset. What do you notice about the long names?
+SELECT DISTINCT name, LENGTH(name) AS length
+from names
+ORDER BY LENGTH(name) DESC;
+
+-- All of these names are compund names
+
+--2. How many names are palindromes (i.e. read the same backwards and forwards, such as Bob and Elle)?
+SELECT COUNT(DISTINCT name)
+FROM names
+WHERE LOWER(name) = REVERSE(LOWER(name)) AND name IS NOT NULL;
+
+--137 names are palindromes
+
+/* 3. Find all names that contain no vowels (for this question, we'll count a,e,i,o,u, and y as vowels).
+(Hint: you might find this page helpful: https://www.postgresql.org/docs/8.3/functions-matching.html) */
+SELECT COUNT(DISTINCT name), LENGTH(name)
+FROM names
+WHERE LOWER(name) SIMILAR TO '%(a|e|i|o|u|y)%' = False
+ORDER BY LENGTH(name) DESC
+
+--43 names have no vowels
+
+-- Bryan, compared counts after replacing name
+select distinct names_examined.name
+from (select name, regexp_replace(lower(name), E'[aeiouy]', '', 'g') as modified_name from names) as names_examined
+where length(names_examined.name) = length(names_examined.modified_name);
+
+
+
+
+/*4. How many double-letter names show up in the dataset?
+Double-letter means the same letter repeated back-to-back,
+like Matthew or Aaron. Are there any triple-letter names? */
+
+SELECT COUNT(DISTINCT name)
+FROM names
+WHERE LOWER(name) SIMILAR TO '%(aa|bb|cc|dd|ee|ff|gg|hh|ii|jj|kk|ll|mm|oo|pp|qq|rr|ss|tt|uu|vv|ww|xx|yy|zz)%';
+
+--very questionable and inefficient, but I think there are 17,405 double letter names
+-- joshua
+SELECT DISTINCT name
+FROM names
+WHERE name ~* '.*(.)\1{1}.*';
+
+/* 5. On question 17 of the first part of the exercise, 
+you found names that only appeared in the 1950s. 
+Now, find all names that did not appear in the 1950s but were used both before and after the 1950s.
+We'll answer this question in two steps. 
+a. First, write a query that returns all names that appeared during the 1950s.
+b. Now, make use of this query along with the IN keyword in order the find all names that
+did not appear in the 1950s but which were used both before and after the 1950s.*/
+
+SELECT name, MIN(year), MAX(year)
+FROM names
+WHERE name NOT IN
+(
+	SELECT name
+	FROM names
+	GROUP BY name
+	HAVING (MIN(year) BETWEEN 1950 AND 1959)
+	AND (MAX(year) BETWEEN 1950 AND 1959) 
+)
+GROUP BY name
+HAVING MIN(year) <1950 AND MAX(year) > 1959;
+
+--14,548 names did not occur in the 50s
+
+--Chris
+SELECT COUNT(DISTINCT name)
+FROM names
+WHERE name NOT IN 
+	(
+		SELECT name
+		FROM names
+		GROUP BY name
+		HAVING MIN(year) >= 1950
+		AND MAX(year) <= 1959
+	)
+AND name IN
+	(
+		SELECT name
+		FROM names
+		GROUP BY name
+		HAVING MIN(year) < 1950
+		AND MAX(year) > 1959
+	);
+
+/* 6. In question 16, you found how many names appeared in only one year. Which year had the highest
+number of names that only appeared once? */
+
+
